@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ganzjahr_rechnung/models.dart';
+import 'package:ganzjahr_rechnung/cloud.dart';
 import 'package:ganzjahr_rechnung/i18n.dart';
 import 'package:ganzjahr_rechnung/pdf/invoice_pdf.dart';
 import 'package:ganzjahr_rechnung/reports.dart';
@@ -139,5 +141,32 @@ void main() {
     final out = Platform.environment['PDF_OUT'];
     if (out != null) File('$out/umsatz.pdf').writeAsBytesSync(pdf);
     expect(pdf.length, greaterThan(5000));
+  });
+
+  test('canonical JSON ignores key order', () {
+    expect(
+      canonical({
+        'b': 1,
+        'a': {
+          'd': 2.5,
+          'c': [
+            1,
+            {'y': 1, 'x': 2},
+          ],
+        },
+      }),
+      canonical({
+        'a': {
+          'c': [
+            1,
+            {'x': 2, 'y': 1},
+          ],
+          'd': 2.5,
+        },
+        'b': 1,
+      }),
+    );
+    final inv = sampleInvoice();
+    expect(canonical(inv.toJson()), canonical(jsonDecode(jsonEncode(inv.toJson()))));
   });
 }

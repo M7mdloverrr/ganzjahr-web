@@ -3,6 +3,7 @@ import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:intl/date_symbol_data_local.dart';
 import 'package:provider/provider.dart';
 
+import 'cloud.dart';
 import 'i18n.dart';
 import 'screens/home_shell.dart';
 import 'store.dart';
@@ -13,7 +14,17 @@ Future<void> main() async {
   await initializeDateFormatting();
   final store = Store();
   await store.load();
-  runApp(ChangeNotifierProvider.value(value: store, child: const GanzJahrApp()));
+  final cloud = CloudSync(store);
+  await cloud.init();
+  runApp(
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider.value(value: store),
+        ChangeNotifierProvider.value(value: cloud),
+      ],
+      child: const GanzJahrApp(),
+    ),
+  );
 }
 
 class GanzJahrApp extends StatelessWidget {

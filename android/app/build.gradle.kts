@@ -4,6 +4,11 @@ plugins {
     id("dev.flutter.flutter-gradle-plugin")
 }
 
+// Cloud sync needs the Firebase config file; the app still builds (offline only) without it.
+if (file("google-services.json").exists()) {
+    apply(plugin = "com.google.gms.google-services")
+}
+
 android {
     namespace = "de.ganzjahr.ganzjahr_rechnung"
     compileSdk = flutter.compileSdkVersion

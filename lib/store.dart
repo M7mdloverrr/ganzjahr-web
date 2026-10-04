@@ -32,6 +32,9 @@ class Store extends ChangeNotifier {
   bool loaded = false;
   File? _file;
 
+  /// Called after every local change (used by cloud sync).
+  void Function()? onLocalChange;
+
   Future<void> load() async {
     final dir = await getApplicationDocumentsDirectory();
     _file = File('${dir.path}/ganzjahr_data.json');
@@ -82,6 +85,14 @@ class Store extends ChangeNotifier {
   }
 
   void _commit() {
+    notifyListeners();
+    _save();
+    onLocalChange?.call();
+  }
+
+  /// Applies data that came from the cloud without triggering another upload.
+  void applyRemote(void Function() change) {
+    change();
     notifyListeners();
     _save();
   }
