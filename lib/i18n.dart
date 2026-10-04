@@ -332,6 +332,11 @@ const _de = <String, String>{
   'Wrong email or password': 'Falsche E-Mail oder falsches Passwort',
   'This email already has an account': 'Für diese E-Mail gibt es bereits ein Konto',
   'No internet connection': 'Keine Internetverbindung',
+  'Choose google-services.json': 'google-services.json wählen',
+  'Cloud connected. Now sign in or create an account.': 'Cloud verbunden. Jetzt anmelden oder Konto erstellen.',
+  'This is not a valid google-services.json file.': 'Keine gültige google-services.json-Datei.',
+  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.': 'Die Cloud ist noch nicht verbunden. Erstelle mit einem beliebigen Google-Konto ein kostenloses Firebase-Projekt (console.firebase.google.com), füge eine Android-App mit dem Paketnamen de.ganzjahr.ganzjahr_rechnung hinzu, aktiviere E-Mail/Passwort-Login und Firestore, lade google-services.json herunter und lade sie hier.',
+  'Connect cloud': 'Cloud verbinden',
 };
 
 const _ar = <String, String>{
@@ -634,4 +639,9 @@ const _ar = <String, String>{
   'Wrong email or password': 'البريد الإلكتروني أو كلمة المرور غير صحيحة',
   'This email already has an account': 'هذا البريد لديه حساب بالفعل',
   'No internet connection': 'لا يوجد اتصال بالإنترنت',
+  'Choose google-services.json': 'اختر google-services.json',
+  'Cloud connected. Now sign in or create an account.': 'تم ربط السحابة. سجّل الدخول الآن أو أنشئ حساباً.',
+  'This is not a valid google-services.json file.': 'هذا ليس ملف google-services.json صالحاً.',
+  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.': 'السحابة غير مرتبطة بعد. أنشئ مشروع Firebase مجانياً بأي حساب Google (console.firebase.google.com)، وأضف تطبيق Android باسم الحزمة de.ganzjahr.ganzjahr_rechnung، وفعّل تسجيل الدخول بالبريد/كلمة المرور وFirestore، ثم نزّل google-services.json وحمّله هنا.',
+  'Connect cloud': 'ربط السحابة',
 };

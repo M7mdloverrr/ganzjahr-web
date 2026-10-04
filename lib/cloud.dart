@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
 import 'store.dart';
@@ -49,14 +51,54 @@ class CloudSync extends ChangeNotifier {
   FirebaseFirestore get _db => FirebaseFirestore.instance;
   DocumentReference<Map<String, dynamic>> get _root => _db.collection('users').doc(user!.uid);
 
+  static const androidPackage = 'de.ganzjahr.ganzjahr_rechnung';
+
+  Future<File> _configFile() async => File('${(await getApplicationDocumentsDirectory()).path}/cloud_config.json');
+
+  /// Reads the Firebase settings from a google-services.json file.
+  static FirebaseOptions optionsFromGoogleServices(String raw) {
+    final j = jsonDecode(raw) as Map<String, dynamic>;
+    final project = j['project_info'] as Map<String, dynamic>;
+    final clients = (j['client'] as List).cast<Map<String, dynamic>>();
+    final client = clients.firstWhere(
+      (c) => c['client_info']?['android_client_info']?['package_name'] == androidPackage,
+      orElse: () => clients.first,
+    );
+    return FirebaseOptions(
+      apiKey: (client['api_key'] as List).first['current_key'] as String,
+      appId: client['client_info']['mobilesdk_app_id'] as String,
+      messagingSenderId: '${project['project_number']}',
+      projectId: project['project_id'] as String,
+      storageBucket: project['storage_bucket'] as String?,
+    );
+  }
+
   Future<void> init() async {
     try {
-      await Firebase.initializeApp().timeout(const Duration(seconds: 8));
+      final f = await _configFile();
+      if (await f.exists()) {
+        await Firebase.initializeApp(options: optionsFromGoogleServices(await f.readAsString())).timeout(const Duration(seconds: 8));
+      } else {
+        await Firebase.initializeApp().timeout(const Duration(seconds: 8));
+      }
       available = true;
     } catch (e) {
-      debugPrint('Cloud sync unavailable: $e');
+      debugPrint('Cloud sync not set up: $e');
       return;
     }
+    _start();
+  }
+
+  /// Connects the app to a Firebase project chosen later by the user.
+  Future<void> connect(String googleServicesJson) async {
+    final options = optionsFromGoogleServices(googleServicesJson);
+    await Firebase.initializeApp(options: options);
+    await (await _configFile()).writeAsString(googleServicesJson, flush: true);
+    available = true;
+    _start();
+  }
+
+  void _start() {
     store.onLocalChange = push;
     user = FirebaseAuth.instance.currentUser;
     if (user != null) _listen();

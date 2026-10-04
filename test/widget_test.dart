@@ -169,4 +169,15 @@ void main() {
     final inv = sampleInvoice();
     expect(canonical(inv.toJson()), canonical(jsonDecode(jsonEncode(inv.toJson()))));
   });
+
+  test('reads google-services.json', () {
+    const raw = '''{"project_info":{"project_number":"123","project_id":"ganzjahr","storage_bucket":"ganzjahr.appspot.com"},
+      "client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"de.ganzjahr.ganzjahr_rechnung"}},
+      "api_key":[{"current_key":"KEY"}]}]}''';
+    final o = CloudSync.optionsFromGoogleServices(raw);
+    expect(o.projectId, 'ganzjahr');
+    expect(o.appId, '1:123:android:abc');
+    expect(o.apiKey, 'KEY');
+    expect(o.messagingSenderId, '123');
+  });
 }

@@ -1,3 +1,6 @@
+import 'dart:convert';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -70,6 +73,22 @@ class _CloudScreenState extends State<CloudScreen> {
     }
   }
 
+  Future<void> _connect() async {
+    final files = await FilePicker.pickFiles(dialogTitle: 'Choose google-services.json'.tr, type: FileType.any);
+    if (files.isEmpty || !mounted) return;
+    setState(() => _busy = true);
+    try {
+      final raw = utf8.decode(await files.first.readAsBytes());
+      if (!mounted) return;
+      await context.read<CloudSync>().connect(raw);
+      if (mounted) toast(context, 'Cloud connected. Now sign in or create an account.'.tr);
+    } catch (e) {
+      if (mounted) toast(context, 'This is not a valid google-services.json file.'.tr);
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
   Future<void> _reset() async {
     if (_email.text.trim().isEmpty) {
       toast(context, 'Enter your email first.'.tr);
@@ -137,9 +156,23 @@ class _CloudScreenState extends State<CloudScreen> {
             style: const TextStyle(color: Colors.black54),
           ),
           const SizedBox(height: 16),
-          if (!cloud.available)
-            Text('Cloud is not set up in this app version.'.tr, style: const TextStyle(color: Colors.redAccent))
-          else if (user != null)
+          if (!cloud.available) ...[
+            Card(
+              color: const Color(0xFFFFF7E6),
+              child: Padding(
+                padding: const EdgeInsets.all(14),
+                child: Text(
+                  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.'
+                      .tr,
+                ),
+              ),
+            ),
+            const SizedBox(height: 12),
+            if (_busy)
+              const Center(child: CircularProgressIndicator())
+            else
+              FilledButton.icon(icon: const Icon(Icons.cloud_upload_rounded), label: Text('Connect cloud'.tr), onPressed: _connect),
+          ] else if (user != null)
             OutlinedButton.icon(
               icon: const Icon(Icons.logout_rounded),
               label: Text('Sign out'.tr),
