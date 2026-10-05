@@ -4,6 +4,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../cloud.dart';
@@ -86,6 +87,16 @@ class _CloudScreenState extends State<CloudScreen> {
           decoration: InputDecoration(hintText: 'Paste the firebaseConfig from Firebase here'.tr, border: const OutlineInputBorder()),
         ),
         actions: [
+          if (!kIsWeb)
+            TextButton(
+              onPressed: () async {
+                final files = await FilePicker.pickFiles(dialogTitle: 'Choose google-services.json'.tr, type: FileType.any);
+                if (files.isEmpty || !ctx.mounted) return;
+                final raw = utf8.decode(await files.first.readAsBytes());
+                if (ctx.mounted) Navigator.pop(ctx, raw);
+              },
+              child: Text('Load file'.tr),
+            ),
           TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel'.tr)),
           FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text('Connect cloud'.tr)),
         ],
@@ -94,23 +105,15 @@ class _CloudScreenState extends State<CloudScreen> {
   }
 
   Future<void> _connect() async {
-    String raw;
-    if (kIsWeb) {
-      final pasted = await _pasteConfig();
-      if (pasted == null || pasted.trim().isEmpty || !mounted) return;
-      raw = pasted;
-    } else {
-      final files = await FilePicker.pickFiles(dialogTitle: 'Choose google-services.json'.tr, type: FileType.any);
-      if (files.isEmpty || !mounted) return;
-      raw = utf8.decode(await files.first.readAsBytes());
-    }
+    final raw = await _pasteConfig();
+    if (raw == null || raw.trim().isEmpty || !mounted) return;
     setState(() => _busy = true);
     try {
       if (!mounted) return;
       await context.read<CloudSync>().connect(raw);
       if (mounted) toast(context, 'Cloud connected. Now sign in or create an account.'.tr);
     } catch (e) {
-      if (mounted) toast(context, (kIsWeb ? 'This is not a valid Firebase config.' : 'This is not a valid google-services.json file.').tr);
+      if (mounted) toast(context, 'This is not a valid Firebase config.'.tr);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -189,9 +192,7 @@ class _CloudScreenState extends State<CloudScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Text(
-                  (kIsWeb
-                          ? 'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here.'
-                          : 'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.')
+                  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here. Use the same text in the phone app and on the website.'
                       .tr,
                 ),
               ),
@@ -201,7 +202,18 @@ class _CloudScreenState extends State<CloudScreen> {
               const Center(child: CircularProgressIndicator())
             else
               FilledButton.icon(icon: const Icon(Icons.cloud_upload_rounded), label: Text('Connect cloud'.tr), onPressed: _connect),
-          ] else if (user != null)
+          ] else if (user != null) ...[
+            if (cloud.config != null) ...[
+              FilledButton.tonalIcon(
+                icon: const Icon(Icons.copy_rounded),
+                label: Text('Copy setup text for another device'.tr),
+                onPressed: () async {
+                  await Clipboard.setData(ClipboardData(text: cloud.config!));
+                  if (context.mounted) toast(context, 'Copied. Paste it under Cloud sync on the other device.'.tr);
+                },
+              ),
+              const SizedBox(height: 8),
+            ],
             OutlinedButton.icon(
               icon: const Icon(Icons.logout_rounded),
               label: Text('Sign out'.tr),
@@ -210,8 +222,8 @@ class _CloudScreenState extends State<CloudScreen> {
                   await cloud.signOut();
                 }
               },
-            )
-          else
+            ),
+          ] else
             Form(
               key: _form,
               child: Column(

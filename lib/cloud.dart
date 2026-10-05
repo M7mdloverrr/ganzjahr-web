@@ -54,6 +54,9 @@ class CloudSync extends ChangeNotifier {
 
   static const _configFile = 'cloud_config.json';
 
+  /// Firebase setup text the user pasted; can be copied to the next device.
+  String? config;
+
   /// Reads Firebase settings from a google-services.json file (Android)
   /// or from the firebaseConfig snippet of a Firebase web app.
   static FirebaseOptions optionsFromConfig(String raw) {
@@ -93,6 +96,7 @@ class CloudSync extends ChangeNotifier {
   Future<void> init() async {
     try {
       final saved = await readData(_configFile);
+      config = saved;
       if (saved != null) {
         await Firebase.initializeApp(options: optionsFromConfig(saved)).timeout(const Duration(seconds: 8));
       } else if (kIsWeb) {
@@ -113,6 +117,7 @@ class CloudSync extends ChangeNotifier {
     final options = optionsFromConfig(config);
     await Firebase.initializeApp(options: options);
     await writeData(_configFile, config);
+    this.config = config;
     available = true;
     _start();
   }

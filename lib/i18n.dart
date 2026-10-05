@@ -340,6 +340,10 @@ const _de = <String, String>{
   'Paste the firebaseConfig from Firebase here': 'firebaseConfig aus Firebase hier einfügen',
   'This is not a valid Firebase config.': 'Keine gültige Firebase-Konfiguration.',
   'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here.': 'Die Cloud ist noch nicht verbunden. Erstelle mit einem beliebigen Google-Konto ein kostenloses Firebase-Projekt (console.firebase.google.com), aktiviere E-Mail/Passwort-Login und Firestore, füge eine Web-App hinzu (</>-Symbol), kopiere die firebaseConfig und füge sie hier ein.',
+  'Load file': 'Datei laden',
+  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here. Use the same text in the phone app and on the website.': 'Die Cloud ist noch nicht verbunden. Erstelle mit einem beliebigen Google-Konto ein kostenloses Firebase-Projekt (console.firebase.google.com), aktiviere E-Mail/Passwort-Login und Firestore, füge eine Web-App hinzu (</>-Symbol), kopiere die firebaseConfig und füge sie hier ein. Nutze denselben Text in der Handy-App und auf der Website.',
+  'Copy setup text for another device': 'Einrichtungstext für anderes Gerät kopieren',
+  'Copied. Paste it under Cloud sync on the other device.': 'Kopiert. Auf dem anderen Gerät unter Cloud-Sync einfügen.',
 };
 
 const _ar = <String, String>{
@@ -650,4 +654,8 @@ const _ar = <String, String>{
   'Paste the firebaseConfig from Firebase here': 'الصق firebaseConfig من Firebase هنا',
   'This is not a valid Firebase config.': 'هذا ليس إعداد Firebase صالحاً.',
   'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here.': 'السحابة غير مرتبطة بعد. أنشئ مشروع Firebase مجانياً بأي حساب Google (console.firebase.google.com)، وفعّل تسجيل الدخول بالبريد/كلمة المرور وFirestore، وأضف تطبيق ويب (رمز </>)، ثم انسخ firebaseConfig والصقه هنا.',
+  'Load file': 'تحميل ملف',
+  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here. Use the same text in the phone app and on the website.': 'السحابة غير مرتبطة بعد. أنشئ مشروع Firebase مجانياً بأي حساب Google (console.firebase.google.com)، وفعّل تسجيل الدخول بالبريد/كلمة المرور وFirestore، وأضف تطبيق ويب (رمز </>)، ثم انسخ firebaseConfig والصقه هنا. استخدم نفس النص في تطبيق الهاتف وعلى الموقع.',
+  'Copy setup text for another device': 'نسخ نص الإعداد لجهاز آخر',
+  'Copied. Paste it under Cloud sync on the other device.': 'تم النسخ. الصقه في المزامنة السحابية على الجهاز الآخر.',
 };

@@ -180,4 +180,21 @@ void main() {
     expect(o.apiKey, 'KEY');
     expect(o.messagingSenderId, '123');
   });
+
+  test('reads pasted firebaseConfig', () {
+    const raw = '''const firebaseConfig = {
+  apiKey: "AIzaX",
+  authDomain: "ganzjahr.firebaseapp.com",
+  projectId: "ganzjahr",
+  storageBucket: "ganzjahr.firebasestorage.app",
+  messagingSenderId: "123",
+  appId: "1:123:web:abc"
+};''';
+    final o = CloudSync.optionsFromConfig(raw);
+    expect(o.apiKey, 'AIzaX');
+    expect(o.projectId, 'ganzjahr');
+    expect(o.appId, '1:123:web:abc');
+    expect(o.authDomain, 'ganzjahr.firebaseapp.com');
+    expect(() => CloudSync.optionsFromConfig('hello'), throwsFormatException);
+  });
 }
