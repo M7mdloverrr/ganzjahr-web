@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -73,17 +74,43 @@ class _CloudScreenState extends State<CloudScreen> {
     }
   }
 
+  Future<String?> _pasteConfig() {
+    final ctrl = TextEditingController();
+    return showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text('Connect cloud'.tr),
+        content: TextField(
+          controller: ctrl,
+          maxLines: 8,
+          decoration: InputDecoration(hintText: 'Paste the firebaseConfig from Firebase here'.tr, border: const OutlineInputBorder()),
+        ),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel'.tr)),
+          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text('Connect cloud'.tr)),
+        ],
+      ),
+    );
+  }
+
   Future<void> _connect() async {
-    final files = await FilePicker.pickFiles(dialogTitle: 'Choose google-services.json'.tr, type: FileType.any);
-    if (files.isEmpty || !mounted) return;
+    String raw;
+    if (kIsWeb) {
+      final pasted = await _pasteConfig();
+      if (pasted == null || pasted.trim().isEmpty || !mounted) return;
+      raw = pasted;
+    } else {
+      final files = await FilePicker.pickFiles(dialogTitle: 'Choose google-services.json'.tr, type: FileType.any);
+      if (files.isEmpty || !mounted) return;
+      raw = utf8.decode(await files.first.readAsBytes());
+    }
     setState(() => _busy = true);
     try {
-      final raw = utf8.decode(await files.first.readAsBytes());
       if (!mounted) return;
       await context.read<CloudSync>().connect(raw);
       if (mounted) toast(context, 'Cloud connected. Now sign in or create an account.'.tr);
     } catch (e) {
-      if (mounted) toast(context, 'This is not a valid google-services.json file.'.tr);
+      if (mounted) toast(context, (kIsWeb ? 'This is not a valid Firebase config.' : 'This is not a valid google-services.json file.').tr);
     } finally {
       if (mounted) setState(() => _busy = false);
     }
@@ -162,7 +189,9 @@ class _CloudScreenState extends State<CloudScreen> {
               child: Padding(
                 padding: const EdgeInsets.all(14),
                 child: Text(
-                  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.'
+                  (kIsWeb
+                          ? 'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here.'
+                          : 'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.')
                       .tr,
                 ),
               ),

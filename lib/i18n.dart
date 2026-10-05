@@ -337,6 +337,9 @@ const _de = <String, String>{
   'This is not a valid google-services.json file.': 'Keine gültige google-services.json-Datei.',
   'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.': 'Die Cloud ist noch nicht verbunden. Erstelle mit einem beliebigen Google-Konto ein kostenloses Firebase-Projekt (console.firebase.google.com), füge eine Android-App mit dem Paketnamen de.ganzjahr.ganzjahr_rechnung hinzu, aktiviere E-Mail/Passwort-Login und Firestore, lade google-services.json herunter und lade sie hier.',
   'Connect cloud': 'Cloud verbinden',
+  'Paste the firebaseConfig from Firebase here': 'firebaseConfig aus Firebase hier einfügen',
+  'This is not a valid Firebase config.': 'Keine gültige Firebase-Konfiguration.',
+  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here.': 'Die Cloud ist noch nicht verbunden. Erstelle mit einem beliebigen Google-Konto ein kostenloses Firebase-Projekt (console.firebase.google.com), aktiviere E-Mail/Passwort-Login und Firestore, füge eine Web-App hinzu (</>-Symbol), kopiere die firebaseConfig und füge sie hier ein.',
 };
 
 const _ar = <String, String>{
@@ -644,4 +647,7 @@ const _ar = <String, String>{
   'This is not a valid google-services.json file.': 'هذا ليس ملف google-services.json صالحاً.',
   'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), add an Android app with the package name de.ganzjahr.ganzjahr_rechnung, turn on Email/Password login and Firestore, download google-services.json and load it here.': 'السحابة غير مرتبطة بعد. أنشئ مشروع Firebase مجانياً بأي حساب Google (console.firebase.google.com)، وأضف تطبيق Android باسم الحزمة de.ganzjahr.ganzjahr_rechnung، وفعّل تسجيل الدخول بالبريد/كلمة المرور وFirestore، ثم نزّل google-services.json وحمّله هنا.',
   'Connect cloud': 'ربط السحابة',
+  'Paste the firebaseConfig from Firebase here': 'الصق firebaseConfig من Firebase هنا',
+  'This is not a valid Firebase config.': 'هذا ليس إعداد Firebase صالحاً.',
+  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here.': 'السحابة غير مرتبطة بعد. أنشئ مشروع Firebase مجانياً بأي حساب Google (console.firebase.google.com)، وفعّل تسجيل الدخول بالبريد/كلمة المرور وFirestore، وأضف تطبيق ويب (رمز </>)، ثم انسخ firebaseConfig والصقه هنا.',
 };

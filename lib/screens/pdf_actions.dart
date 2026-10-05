@@ -1,9 +1,11 @@
 import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:pdf/pdf.dart';
 import 'package:printing/printing.dart';
+import 'package:share_plus/share_plus.dart';
 
 import '../widgets.dart';
 import '../i18n.dart';
@@ -28,8 +30,20 @@ Future<void> savePdfToDevice(BuildContext context, Uint8List bytes, String fileN
 
 Future<void> printPdf(Uint8List bytes, String name) => Printing.layoutPdf(onLayout: (_) async => bytes, name: name, format: PdfPageFormat.a4);
 
-Future<void> sharePdf(Uint8List bytes, String fileName, {String? subject, String? body, List<String>? emails}) =>
-    Printing.sharePdf(bytes: bytes, filename: fileName, subject: subject, body: body, emails: emails);
+Future<void> sharePdf(Uint8List bytes, String fileName, {String? subject, String? body, List<String>? emails}) async {
+  if (kIsWeb) {
+    await SharePlus.instance.share(
+      ShareParams(
+        files: [XFile.fromData(bytes, mimeType: 'application/pdf', name: fileName)],
+        fileNameOverrides: [fileName],
+        subject: subject,
+        downloadFallbackEnabled: true,
+      ),
+    );
+    return;
+  }
+  await Printing.sharePdf(bytes: bytes, filename: fileName, subject: subject, body: body, emails: emails);
+}
 
 /// PDF preview with Print, Save and Send buttons.
 class PdfPane extends StatefulWidget {

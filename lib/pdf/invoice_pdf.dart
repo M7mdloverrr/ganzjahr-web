@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -25,7 +26,7 @@ Future<_Assets> _loadAssets(Company c) async {
   final bold = pw.Font.ttf(await rootBundle.load('assets/fonts/LiberationSans-Bold.ttf'));
   Uint8List logoBytes;
   final custom = c.logoPath;
-  if (custom != null && File(custom).existsSync()) {
+  if (!kIsWeb && custom != null && File(custom).existsSync()) {
     logoBytes = await File(custom).readAsBytes();
   } else {
     logoBytes = (await rootBundle.load('assets/images/logo_invoice.png')).buffer.asUint8List();

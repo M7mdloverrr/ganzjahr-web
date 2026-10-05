@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+  <meta name="description" content="GanzJahr Rechnung – Kunden, Angebote und Rechnungen">
+  <meta name="theme-color" content="#16202a">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="GanzJahr">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>GanzJahr Rechnung</title>
+  <link rel="manifest" href="manifest.json">
+  <style>
+    html, body { margin: 0; height: 100%; background: #f4f6f2; }
+    #splash { position: fixed; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 18px;
+      font: 600 15px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #33475a; transition: opacity .3s; }
+    #splash img { width: 96px; height: 96px; }
+    #splash .bar { width: 120px; height: 4px; border-radius: 4px; background: #dfe7d6; overflow: hidden; }
+    #splash .bar::after { content: ""; display: block; width: 40%; height: 100%; background: #63b32a; border-radius: 4px; animation: s 1.1s ease-in-out infinite; }
+    @keyframes s { 0% { transform: translateX(-100%); } 100% { transform: translateX(260%); } }
+  </style>
+</head>
+<body>
+  <div id="splash"><img src="icons/Icon-192.png" alt="GanzJahr"><div class="bar"></div></div>
+  <script>
+    window.addEventListener('flutter-first-frame', function () {
+      var s = document.getElementById('splash'); s.style.opacity = 0; setTimeout(function () { s.remove(); }, 300);
+    });
+  </script>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>

@@ -1,14 +1,13 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
+import 'storage/storage.dart';
 import 'store.dart';
 
 /// Canonical JSON (sorted keys) so equal data always compares equal.
@@ -53,7 +52,25 @@ class CloudSync extends ChangeNotifier {
 
   static const androidPackage = 'de.ganzjahr.ganzjahr_rechnung';
 
-  Future<File> _configFile() async => File('${(await getApplicationDocumentsDirectory()).path}/cloud_config.json');
+  static const _configFile = 'cloud_config.json';
+
+  /// Reads Firebase settings from a google-services.json file (Android)
+  /// or from the firebaseConfig snippet of a Firebase web app.
+  static FirebaseOptions optionsFromConfig(String raw) {
+    if (raw.contains('project_info')) return optionsFromGoogleServices(raw);
+    final v = {for (final m in RegExp(r'''["']?(\w+)["']?\s*:\s*["']([^"']*)["']''').allMatches(raw)) m.group(1)!: m.group(2)!};
+    for (final k in ['apiKey', 'appId', 'projectId', 'messagingSenderId']) {
+      if ((v[k] ?? '').isEmpty) throw FormatException('Missing $k');
+    }
+    return FirebaseOptions(
+      apiKey: v['apiKey']!,
+      appId: v['appId']!,
+      messagingSenderId: v['messagingSenderId']!,
+      projectId: v['projectId']!,
+      authDomain: v['authDomain'],
+      storageBucket: v['storageBucket'],
+    );
+  }
 
   /// Reads the Firebase settings from a google-services.json file.
   static FirebaseOptions optionsFromGoogleServices(String raw) {
@@ -75,9 +92,11 @@ class CloudSync extends ChangeNotifier {
 
   Future<void> init() async {
     try {
-      final f = await _configFile();
-      if (await f.exists()) {
-        await Firebase.initializeApp(options: optionsFromGoogleServices(await f.readAsString())).timeout(const Duration(seconds: 8));
+      final saved = await readData(_configFile);
+      if (saved != null) {
+        await Firebase.initializeApp(options: optionsFromConfig(saved)).timeout(const Duration(seconds: 8));
+      } else if (kIsWeb) {
+        return;
       } else {
         await Firebase.initializeApp().timeout(const Duration(seconds: 8));
       }
@@ -90,10 +109,10 @@ class CloudSync extends ChangeNotifier {
   }
 
   /// Connects the app to a Firebase project chosen later by the user.
-  Future<void> connect(String googleServicesJson) async {
-    final options = optionsFromGoogleServices(googleServicesJson);
+  Future<void> connect(String config) async {
+    final options = optionsFromConfig(config);
     await Firebase.initializeApp(options: options);
-    await (await _configFile()).writeAsString(googleServicesJson, flush: true);
+    await writeData(_configFile, config);
     available = true;
     _start();
   }

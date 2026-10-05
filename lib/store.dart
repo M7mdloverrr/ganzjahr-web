@@ -1,10 +1,9 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/foundation.dart';
-import 'package:path_provider/path_provider.dart';
 
 import 'models.dart';
+import 'storage/storage.dart';
 
 int _idCounter = 0;
 String newId() => '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}${(_idCounter++).toRadixString(36)}';
@@ -30,16 +29,16 @@ class Store extends ChangeNotifier {
   List<Document> documents = [];
   String language = 'en';
   bool loaded = false;
-  File? _file;
 
   /// Called after every local change (used by cloud sync).
   void Function()? onLocalChange;
 
+  static const _dataFile = 'ganzjahr_data.json';
+
   Future<void> load() async {
-    final dir = await getApplicationDocumentsDirectory();
-    _file = File('${dir.path}/ganzjahr_data.json');
-    if (await _file!.exists()) {
-      importJson(await _file!.readAsString(), persist: false);
+    final raw = await readData(_dataFile);
+    if (raw != null) {
+      importJson(raw, persist: false);
     } else {
       catalog = defaultCatalog();
     }
@@ -71,12 +70,22 @@ class Store extends ChangeNotifier {
     if (persist) _commit();
   }
 
+  bool _saving = false;
+  bool _dirty = false;
+
   Future<void> _save() async {
-    final f = _file;
-    if (f == null) return;
-    final tmp = File('${f.path}.tmp');
-    await tmp.writeAsString(exportJson(), flush: true);
-    await tmp.rename(f.path);
+    if (!loaded) return;
+    _dirty = true;
+    if (_saving) return;
+    _saving = true;
+    try {
+      while (_dirty) {
+        _dirty = false;
+        await writeData(_dataFile, exportJson());
+      }
+    } finally {
+      _saving = false;
+    }
   }
 
   void setLanguage(String code) {
