@@ -102,7 +102,6 @@ class DocumentViewScreen extends StatelessWidget {
     final d = s.documentById(docId);
     if (d == null) return Scaffold(body: Center(child: Text('Deleted'.tr)));
     final isInvoice = d.isInvoice;
-    final canDelete = d.status == DocStatus.draft || !isInvoice;
 
     return Scaffold(
       appBar: AppBar(
@@ -150,11 +149,10 @@ class DocumentViewScreen extends StatelessWidget {
                   value: 'cancel',
                   child: ListTile(leading: Icon(Icons.block_rounded), title: Text('Cancel (Storno)'.tr)),
                 ),
-              if (canDelete)
-                PopupMenuItem(
-                  value: 'delete',
-                  child: ListTile(leading: Icon(Icons.delete_rounded), title: Text('Delete'.tr)),
-                ),
+              PopupMenuItem(
+                value: 'delete',
+                child: ListTile(leading: Icon(Icons.delete_rounded), title: Text('Delete'.tr)),
+              ),
             ],
           ),
         ],
