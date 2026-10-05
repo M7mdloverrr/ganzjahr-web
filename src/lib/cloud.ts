@@ -11,6 +11,7 @@ export const KEYS = {
   data: "gj:data",
   rev: "gj:rev",
   password: "gj:password",
+  user: "gj:user",
   token: (t: string) => `gj:token:${createHash("sha256").update(t).digest("hex")}`,
   fails: (ip: string) => `gj:fails:${ip}`,
 };

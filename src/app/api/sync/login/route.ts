@@ -10,7 +10,13 @@ export async function GET() {
 
 export async function POST(req: Request) {
   if (!storageReady) return json({ error: "storage" }, 503);
-  const { password, create } = (await req.json().catch(() => ({}))) as { password?: string; create?: boolean };
+  const { user: rawUser, password, create } = (await req.json().catch(() => ({}))) as {
+    user?: string;
+    password?: string;
+    create?: boolean;
+  };
+  const user = typeof rawUser === "string" ? rawUser.trim().toLowerCase() : "";
+  if (!user) return json({ error: "user" }, 400);
   if (typeof password !== "string" || password.length < 6) return json({ error: "short" }, 400);
 
   const ip = (req.headers.get("x-forwarded-for") ?? "local").split(",")[0].trim();
@@ -20,10 +26,12 @@ export async function POST(req: Request) {
   if (create) {
     const [set] = await redis<string | null>(["SET", KEYS.password, await hashPassword(password), "NX"]);
     if (set !== "OK") return json({ error: "exists" }, 409);
+    await redis(["SET", KEYS.user, user]);
   } else {
-    const [stored] = await redis<string | null>(["GET", KEYS.password]);
+    const [stored, storedUser] = await redis<string | null>(["GET", KEYS.password], ["GET", KEYS.user]);
     if (!stored) return json({ error: "noaccount" }, 404);
-    if (!(await checkPassword(password, stored))) {
+    const passwordOk = await checkPassword(password, stored);
+    if (!passwordOk || storedUser !== user) {
       await redis(["INCR", KEYS.fails(ip)], ["EXPIRE", KEYS.fails(ip), 900]);
       return json({ error: "wrong" }, 401);
     }
