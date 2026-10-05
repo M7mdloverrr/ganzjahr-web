@@ -9,6 +9,7 @@ import 'package:http/testing.dart';
 
 /// In-memory copy of the website's /api/sync endpoints.
 class FakeServer {
+  String? user;
   String? password;
   final tokens = <String>{};
   final data = <String, String>{};
@@ -26,7 +27,8 @@ class FakeServer {
         if (body['create'] == true) {
           if (password != null) return _json({'error': 'exists'}, 409);
           password = body['password'] as String;
-        } else if (password != body['password']) {
+          user = body['user'] as String;
+        } else if (password != body['password'] || user != body['user']) {
           return _json({'error': 'wrong'}, 401);
         }
         final t = 'tok${tokens.length}';
@@ -62,11 +64,12 @@ void main() {
     await phoneCloud.refreshStatus();
     expect(phoneCloud.hasAccount, false);
     phone.upsertCustomer(Customer(id: 'c1', number: 'K1', name: 'Anna Schmidt'));
-    await phoneCloud.signIn('geheim123', create: true);
+    await phoneCloud.signIn('Ruslan', 'geheim123', create: true);
     expect(server.data.keys, contains('customers/c1'));
 
-    await expectLater(webCloud.signIn('falsch!!'), throwsA(isA<CloudException>().having((e) => e.code, 'code', 'wrong')));
-    await webCloud.signIn('geheim123');
+    await expectLater(webCloud.signIn('Ruslan', 'falsch!!'), throwsA(isA<CloudException>().having((e) => e.code, 'code', 'wrong')));
+    await expectLater(webCloud.signIn('Someone', 'geheim123'), throwsA(isA<CloudException>().having((e) => e.code, 'code', 'wrong')));
+    await webCloud.signIn('Ruslan', 'geheim123');
     expect(web.customers.single.name, 'Anna Schmidt');
 
     web.upsertCustomer(Customer(id: 'c2', number: 'K2', name: 'Bernd Müller'));

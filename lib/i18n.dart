@@ -312,6 +312,9 @@ const _de = <String, String>{
   'Create account': 'Konto erstellen',
   'Sign out': 'Abmelden',
   'Password': 'Passwort',
+  'Username': 'Benutzername',
+  'Please enter your username': 'Bitte Benutzernamen eingeben',
+  'Wrong username or password': 'Benutzername oder Passwort falsch',
   'At least 6 characters': 'Mindestens 6 Zeichen',
   'Cloud already has data': 'In der Cloud sind bereits Daten',
   'This phone also has data. Use only the cloud data, or merge both?':
@@ -615,6 +618,9 @@ const _ar = <String, String>{
   'Create account': 'إنشاء حساب',
   'Sign out': 'تسجيل الخروج',
   'Password': 'كلمة المرور',
+  'Username': 'اسم المستخدم',
+  'Please enter your username': 'يرجى إدخال اسم المستخدم',
+  'Wrong username or password': 'اسم المستخدم أو كلمة المرور غير صحيحة',
   'At least 6 characters': '6 أحرف على الأقل',
   'Cloud already has data': 'توجد بيانات في السحابة بالفعل',
   'This phone also has data. Use only the cloud data, or merge both?':

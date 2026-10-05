@@ -156,8 +156,8 @@ class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
     notifyListeners();
   }
 
-  Future<void> signIn(String password, {bool create = false}) async {
-    final j = await _call('POST', 'api/sync/login', body: {'password': password, 'create': create});
+  Future<void> signIn(String user, String password, {bool create = false}) async {
+    final j = await _call('POST', 'api/sync/login', body: {'user': user.trim(), 'password': password, 'create': create});
     _token = j['token'] as String;
     hasAccount = true;
     try {

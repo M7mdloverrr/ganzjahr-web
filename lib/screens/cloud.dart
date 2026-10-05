@@ -15,6 +15,7 @@ class CloudScreen extends StatefulWidget {
 }
 
 class _CloudScreenState extends State<CloudScreen> {
+  final _user = TextEditingController();
   final _password = TextEditingController();
   final _form = GlobalKey<FormState>();
   bool _busy = false;
@@ -27,12 +28,14 @@ class _CloudScreenState extends State<CloudScreen> {
 
   @override
   void dispose() {
+    _user.dispose();
     _password.dispose();
     super.dispose();
   }
 
   String _error(Object e) => switch (e is CloudException ? e.code : '') {
-    'wrong' => 'Wrong password'.tr,
+    'wrong' => 'Wrong username or password'.tr,
+    'user' => 'Please enter your username'.tr,
     'short' => 'At least 6 characters'.tr,
     'exists' => 'The account already exists. Please sign in.'.tr,
     'noaccount' => 'No account yet. Please create one first.'.tr,
@@ -62,7 +65,7 @@ class _CloudScreenState extends State<CloudScreen> {
     };
     setState(() => _busy = true);
     try {
-      await cloud.signIn(_password.text, create: create);
+      await cloud.signIn(_user.text, _password.text, create: create);
       _password.clear();
       if (mounted) toast(context, 'All data is saved in the cloud.'.tr);
     } catch (e) {
@@ -154,6 +157,15 @@ class _CloudScreenState extends State<CloudScreen> {
                     Text('First time: choose a password for your company account.'.tr, style: const TextStyle(fontWeight: FontWeight.w700)),
                     const SizedBox(height: 12),
                   ],
+                  TextFormField(
+                    controller: _user,
+                    autocorrect: false,
+                    autofillHints: const [AutofillHints.username],
+                    textInputAction: TextInputAction.next,
+                    decoration: InputDecoration(labelText: 'Username'.tr, prefixIcon: const Icon(Icons.person_outline_rounded)),
+                    validator: (v) => (v ?? '').trim().isNotEmpty ? null : 'Please enter your username'.tr,
+                  ),
+                  const SizedBox(height: 12),
                   TextFormField(
                     controller: _password,
                     obscureText: true,
