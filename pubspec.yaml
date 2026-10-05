@@ -1,7 +1,7 @@
 name: ganzjahr_rechnung
 description: "GanzJahr Rechnungen & Kundenverwaltung"
 publish_to: 'none'
-version: 1.3.0+4
+version: 1.4.0+5
 
 environment:
   sdk: ^3.13.4
@@ -11,9 +11,7 @@ dependencies:
     sdk: flutter
   flutter_localizations:
     sdk: flutter
-  firebase_core: 4.15.0
-  firebase_auth: 6.7.0
-  cloud_firestore: 6.10.0
+  http: ^1.6.0
   pdf: 3.13.1
   printing: 5.15.1
   path_provider: 2.1.6

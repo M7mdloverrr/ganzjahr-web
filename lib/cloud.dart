@@ -1,10 +1,9 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-import 'package:firebase_auth/firebase_auth.dart';
-import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart';
+import 'package:http/http.dart' as http;
 
 import 'models.dart';
 import 'storage/storage.dart';
@@ -18,135 +17,170 @@ String canonical(Object? v) {
       return {for (final k in keys) k: norm(x[k])};
     }
     if (x is List) return x.map(norm).toList();
-    if (x is Timestamp) return x.toDate().toIso8601String();
     return x;
   }
 
   return jsonEncode(norm(v));
 }
 
-Map<String, dynamic> _plain(Map<String, dynamic> m) => jsonDecode(canonical(m)) as Map<String, dynamic>;
+class CloudException implements Exception {
+  CloudException(this.code);
 
-const _collections = ['customers', 'catalog', 'documents'];
+  /// short, wrong, exists, noaccount, locked, storage, auth, offline
+  final String code;
 
-/// Keeps company, customers, services and documents in Firestore under users/{uid}.
-/// Firestore's offline cache queues changes made without internet and uploads them later.
-class CloudSync extends ChangeNotifier {
-  CloudSync(this.store);
+  @override
+  String toString() => 'CloudException($code)';
+}
+
+/// Keeps company, customers, services and documents on the GanzJahr server (website /api/sync).
+/// Changes made offline stay queued on the device and are uploaded once there is internet.
+class CloudSync extends ChangeNotifier with WidgetsBindingObserver {
+  CloudSync(this.store, {http.Client? client, Uri? server}) : _http = client ?? http.Client(), server = server ?? defaultServer;
+
+  static Uri get defaultServer =>
+      kIsWeb && Uri.base.scheme.startsWith('http') ? Uri.parse('${Uri.base.origin}/') : Uri.parse('https://ganzjahr-web.vercel.app/');
 
   final Store store;
-  bool available = false;
-  User? user;
-  bool ready = false;
+  final Uri server;
+  final http.Client _http;
+
+  String? _token;
+  int _rev = -1;
+
+  /// Last data known to be on the server: key -> canonical JSON.
+  Map<String, String> _base = {};
+
+  bool get signedIn => _token != null;
+  bool? storageReady;
+  bool? hasAccount;
+  bool online = true;
   bool pending = false;
   DateTime? lastSync;
 
-  final Map<String, String> _remote = {};
-  final List<StreamSubscription<Object?>> _subs = [];
-
-  /// Set by the UI: decides what to do when both the phone and the cloud already have data.
+  /// Set by the UI: decides what to do when both this device and the cloud already have data.
   Future<bool> Function()? askUseCloud;
 
-  FirebaseFirestore get _db => FirebaseFirestore.instance;
-  DocumentReference<Map<String, dynamic>> get _root => _db.collection('users').doc(user!.uid);
-
-  static const androidPackage = 'de.ganzjahr.ganzjahr_rechnung';
-
-  static const _configFile = 'cloud_config.json';
-
-  /// Firebase setup text the user pasted; can be copied to the next device.
-  String? config;
-
-  /// Reads Firebase settings from a google-services.json file (Android)
-  /// or from the firebaseConfig snippet of a Firebase web app.
-  static FirebaseOptions optionsFromConfig(String raw) {
-    if (raw.contains('project_info')) return optionsFromGoogleServices(raw);
-    final v = {for (final m in RegExp(r'''["']?(\w+)["']?\s*:\s*["']([^"']*)["']''').allMatches(raw)) m.group(1)!: m.group(2)!};
-    for (final k in ['apiKey', 'appId', 'projectId', 'messagingSenderId']) {
-      if ((v[k] ?? '').isEmpty) throw FormatException('Missing $k');
-    }
-    return FirebaseOptions(
-      apiKey: v['apiKey']!,
-      appId: v['appId']!,
-      messagingSenderId: v['messagingSenderId']!,
-      projectId: v['projectId']!,
-      authDomain: v['authDomain'],
-      storageBucket: v['storageBucket'],
-    );
-  }
-
-  /// Reads the Firebase settings from a google-services.json file.
-  static FirebaseOptions optionsFromGoogleServices(String raw) {
-    final j = jsonDecode(raw) as Map<String, dynamic>;
-    final project = j['project_info'] as Map<String, dynamic>;
-    final clients = (j['client'] as List).cast<Map<String, dynamic>>();
-    final client = clients.firstWhere(
-      (c) => c['client_info']?['android_client_info']?['package_name'] == androidPackage,
-      orElse: () => clients.first,
-    );
-    return FirebaseOptions(
-      apiKey: (client['api_key'] as List).first['current_key'] as String,
-      appId: client['client_info']['mobilesdk_app_id'] as String,
-      messagingSenderId: '${project['project_number']}',
-      projectId: project['project_id'] as String,
-      storageBucket: project['storage_bucket'] as String?,
-    );
-  }
+  static const _stateFile = 'cloud_state.json';
+  Timer? _timer;
+  Timer? _debounce;
+  Completer<void>? _running;
+  bool _again = false;
 
   Future<void> init() async {
     try {
-      final saved = await readData(_configFile);
-      config = saved;
-      if (saved != null) {
-        await Firebase.initializeApp(options: optionsFromConfig(saved)).timeout(const Duration(seconds: 8));
-      } else if (kIsWeb) {
-        return;
-      } else {
-        await Firebase.initializeApp().timeout(const Duration(seconds: 8));
+      final raw = await readData(_stateFile);
+      if (raw != null) {
+        final j = jsonDecode(raw) as Map<String, dynamic>;
+        _token = j['token'] as String?;
+        _rev = j['rev'] as int? ?? -1;
+        _base = Map<String, String>.from(j['base'] as Map? ?? {});
+        final t = j['lastSync'] as String?;
+        lastSync = t == null ? null : DateTime.tryParse(t);
       }
-      available = true;
     } catch (e) {
-      debugPrint('Cloud sync not set up: $e');
-      return;
+      debugPrint('Cloud state unreadable: $e');
     }
-    _start();
+    if (_token != null) _start();
   }
 
-  /// Connects the app to a Firebase project chosen later by the user.
-  Future<void> connect(String config) async {
-    final options = optionsFromConfig(config);
-    await Firebase.initializeApp(options: options);
-    await writeData(_configFile, config);
-    this.config = config;
-    available = true;
-    _start();
+  Future<void> _saveState() async {
+    try {
+      await writeData(_stateFile, jsonEncode({'token': _token, 'rev': _rev, 'base': _base, 'lastSync': lastSync?.toIso8601String()}));
+    } catch (e) {
+      debugPrint('Cloud state not saved: $e');
+    }
   }
 
   void _start() {
-    store.onLocalChange = push;
-    user = FirebaseAuth.instance.currentUser;
-    if (user != null) _listen();
+    store.onLocalChange = _schedule;
+    _timer?.cancel();
+    _timer = Timer.periodic(const Duration(seconds: 20), (_) => sync());
+    WidgetsBinding.instance.removeObserver(this);
+    WidgetsBinding.instance.addObserver(this);
+    unawaited(sync());
+  }
+
+  void _stop() {
+    store.onLocalChange = null;
+    _timer?.cancel();
+    _debounce?.cancel();
+    WidgetsBinding.instance.removeObserver(this);
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) unawaited(sync());
+  }
+
+  void _schedule() {
+    pending = true;
+    notifyListeners();
+    _debounce?.cancel();
+    _debounce = Timer(const Duration(milliseconds: 700), sync);
+  }
+
+  Uri _api(String path, [Map<String, String>? query]) => server.resolve(path).replace(queryParameters: query);
+
+  Map<String, String> get _headers => {'Content-Type': 'application/json', if (_token != null) 'Authorization': 'Bearer $_token'};
+
+  Future<Map<String, dynamic>> _call(String method, String path, {Object? body, Map<String, String>? query}) async {
+    final http.Response res;
+    try {
+      final req = http.Request(method, _api(path, query))..headers.addAll(_headers);
+      if (body != null) req.body = jsonEncode(body);
+      res = await http.Response.fromStream(await _http.send(req).timeout(const Duration(seconds: 20)));
+    } catch (_) {
+      throw CloudException('offline');
+    }
+    Map<String, dynamic> j;
+    try {
+      j = jsonDecode(res.body) as Map<String, dynamic>;
+    } catch (_) {
+      throw CloudException('offline');
+    }
+    if (res.statusCode >= 400) throw CloudException(j['error'] as String? ?? 'offline');
+    return j;
+  }
+
+  /// Asks the server whether the database is switched on and whether the company account exists.
+  Future<void> refreshStatus() async {
+    try {
+      final j = await _call('GET', 'api/sync/login');
+      storageReady = j['storage'] as bool?;
+      hasAccount = j['account'] as bool?;
+      online = true;
+    } on CloudException {
+      online = false;
+    }
     notifyListeners();
   }
 
-  Future<void> signIn(String email, String password, {bool create = false}) async {
-    final auth = FirebaseAuth.instance;
-    final cred = create
-        ? await auth.createUserWithEmailAndPassword(email: email, password: password)
-        : await auth.signInWithEmailAndPassword(email: email, password: password);
-    user = cred.user;
+  Future<void> signIn(String password, {bool create = false}) async {
+    final j = await _call('POST', 'api/sync/login', body: {'password': password, 'create': create});
+    _token = j['token'] as String;
+    hasAccount = true;
+    try {
+      await _firstSync();
+    } catch (e) {
+      _token = null;
+      rethrow;
+    }
+    await _saveState();
+    _start();
     notifyListeners();
-    await _firstSync();
   }
-
-  Future<void> resetPassword(String email) => FirebaseAuth.instance.sendPasswordResetEmail(email: email);
 
   Future<void> signOut() async {
-    await _stop();
-    await FirebaseAuth.instance.signOut();
-    user = null;
-    ready = false;
-    _remote.clear();
+    _stop();
+    try {
+      await _call('DELETE', 'api/sync/login');
+    } catch (_) {}
+    _token = null;
+    _base = {};
+    _rev = -1;
+    pending = false;
+    await _saveState();
     notifyListeners();
   }
 
@@ -157,35 +191,99 @@ class CloudSync extends ChangeNotifier {
     for (final d in store.documents) 'documents/${d.id}': d.toJson(),
   };
 
-  Future<Map<String, Map<String, dynamic>>> _fetchAll() async {
-    final out = <String, Map<String, dynamic>>{};
-    final company = await _root.collection('meta').doc('company').get();
-    if (company.exists) out['meta/company'] = _plain(company.data()!);
-    for (final col in _collections) {
-      for (final doc in (await _root.collection(col).get()).docs) {
-        out['$col/${doc.id}'] = _plain(doc.data());
-      }
-    }
-    return out;
+  Future<(int, Map<String, Map<String, dynamic>>?)> _fetch({bool full = false}) async {
+    final j = await _call('GET', 'api/sync', query: full || _rev < 0 ? null : {'since': '$_rev'});
+    final items = j['items'] as Map<String, dynamic>?;
+    return (j['rev'] as int, items?.map((k, v) => MapEntry(k, Map<String, dynamic>.from(jsonDecode(v as String) as Map))));
   }
 
   Future<void> _firstSync() async {
-    final cloud = await _fetchAll();
-    final phoneHasData = store.customers.isNotEmpty || store.documents.isNotEmpty;
-    if (cloud.isNotEmpty) {
-      final useCloud = !phoneHasData || await (askUseCloud?.call() ?? Future.value(true));
-      _remote
-        ..clear()
-        ..addAll(cloud.map((k, v) => MapEntry(k, canonical(v))));
+    final (rev, cloud) = await _fetch(full: true);
+    final remote = cloud ?? {};
+    final deviceHasData = store.customers.isNotEmpty || store.documents.isNotEmpty;
+    if (remote.isNotEmpty) {
+      final useCloud = !deviceHasData || await (askUseCloud?.call() ?? Future.value(true));
       if (useCloud) {
-        _apply(cloud);
+        _apply(remote);
       } else {
-        _merge(cloud);
+        _merge(remote);
       }
     }
-    ready = true;
-    push();
-    _listen();
+    _base = remote.map((k, v) => MapEntry(k, canonical(v)));
+    _rev = rev;
+    await _syncOnce();
+  }
+
+  /// Local changes since the last known server state.
+  (Map<String, String>, List<String>) _diff() {
+    final local = _local();
+    final set = <String, String>{};
+    for (final e in local.entries) {
+      final c = canonical(e.value);
+      if (_base[e.key] != c) set[e.key] = c;
+    }
+    final del = _base.keys.where((k) => !local.containsKey(k)).toList();
+    return (set, del);
+  }
+
+  /// Uploads local changes and downloads changes from other devices.
+  Future<void> sync() {
+    if (_token == null) return Future.value();
+    final running = _running;
+    if (running != null) {
+      _again = true;
+      return running.future;
+    }
+    final done = _running = Completer<void>();
+    () async {
+      try {
+        do {
+          _again = false;
+          await _syncOnce();
+        } while (_again && _token != null);
+        online = true;
+      } on CloudException catch (e) {
+        online = false;
+        if (e.code == 'auth') {
+          _stop();
+          _token = null;
+          _base = {};
+          _rev = -1;
+          await _saveState();
+        }
+      } finally {
+        _running = null;
+        notifyListeners();
+        done.complete();
+      }
+    }();
+    return done.future;
+  }
+
+  Future<void> _syncOnce() async {
+    final (set, del) = _diff();
+    pending = set.isNotEmpty || del.isNotEmpty;
+    final entries = set.entries.toList();
+    for (var i = 0; i < entries.length || (i == 0 && del.isNotEmpty); i += 100) {
+      final chunk = Map.fromEntries(entries.skip(i).take(100));
+      await _call('POST', 'api/sync', body: {'set': chunk, 'del': i == 0 ? del : <String>[]});
+      _base.addAll(chunk);
+      if (i == 0) del.forEach(_base.remove);
+    }
+    final (rev, cloud) = await _fetch(full: pending);
+    if (cloud != null) {
+      final (s, d) = _diff();
+      if (s.isNotEmpty || d.isNotEmpty) {
+        _again = true;
+        return;
+      }
+      _apply(cloud);
+      _base = cloud.map((k, v) => MapEntry(k, canonical(v)));
+    }
+    _rev = rev;
+    pending = false;
+    lastSync = DateTime.now();
+    await _saveState();
   }
 
   void _merge(Map<String, Map<String, dynamic>> cloud) {
@@ -221,7 +319,7 @@ class CloudSync extends ChangeNotifier {
     return (key.substring(0, i), key.substring(i + 1));
   }
 
-  /// Replaces local data with the cloud state, keeping unchanged objects as they are.
+  /// Replaces local data with the server state, keeping unchanged objects as they are.
   void _apply(Map<String, Map<String, dynamic>> cloud) {
     List<T> merge<T>(
       String col,
@@ -241,6 +339,9 @@ class CloudSync extends ChangeNotifier {
       return out;
     }
 
+    final local = _local();
+    final same = local.length == cloud.length && cloud.entries.every((e) => local[e.key] != null && canonical(local[e.key]) == canonical(e.value));
+    if (same) return;
     store.applyRemote(() {
       final company = cloud['meta/company'];
       if (company != null && canonical(store.company.toJson()) != canonical(company)) {
@@ -252,81 +353,9 @@ class CloudSync extends ChangeNotifier {
     });
   }
 
-  /// Uploads everything that changed locally since the last known cloud state.
-  void push() {
-    if (user == null || !ready) return;
-    final local = _local().map((k, v) => MapEntry(k, (v, canonical(v))));
-    final ops = <void Function(WriteBatch)>[];
-    for (final e in local.entries) {
-      if (_remote[e.key] == e.value.$2) continue;
-      final ref = _root.collection(_split(e.key).$1).doc(_split(e.key).$2);
-      final data = e.value.$1;
-      ops.add((b) => b.set(ref, data));
-      _remote[e.key] = e.value.$2;
-    }
-    for (final key in _remote.keys.where((k) => !local.containsKey(k)).toList()) {
-      final ref = _root.collection(_split(key).$1).doc(_split(key).$2);
-      ops.add((b) => b.delete(ref));
-      _remote.remove(key);
-    }
-    for (var i = 0; i < ops.length; i += 400) {
-      final batch = _db.batch();
-      for (final op in ops.skip(i).take(400)) {
-        op(batch);
-      }
-      unawaited(batch.commit().catchError((Object e) => debugPrint('Cloud upload failed: $e')));
-    }
-  }
-
-  final Map<String, QuerySnapshot<Map<String, dynamic>>> _snaps = {};
-  DocumentSnapshot<Map<String, dynamic>>? _companySnap;
-
-  void _listen() {
+  @override
+  void dispose() {
     _stop();
-    _subs.add(
-      _root.collection('meta').doc('company').snapshots(includeMetadataChanges: true).listen((s) {
-        _companySnap = s;
-        _onSnapshot();
-      }),
-    );
-    for (final col in _collections) {
-      _subs.add(
-        _root.collection(col).snapshots(includeMetadataChanges: true).listen((s) {
-          _snaps[col] = s;
-          _onSnapshot();
-        }),
-      );
-    }
-  }
-
-  void _onSnapshot() {
-    if (_companySnap == null || _snaps.length < _collections.length) return;
-    final cloud = <String, Map<String, dynamic>>{};
-    if (_companySnap!.exists) cloud['meta/company'] = _plain(_companySnap!.data()!);
-    for (final e in _snaps.entries) {
-      for (final d in e.value.docs) {
-        cloud['${e.key}/${d.id}'] = _plain(d.data());
-      }
-    }
-    final metas = [_companySnap!.metadata, ..._snaps.values.map((s) => s.metadata)];
-    pending = metas.any((m) => m.hasPendingWrites);
-    if (!pending && metas.every((m) => !m.isFromCache)) lastSync = DateTime.now();
-    if (!pending) {
-      _remote
-        ..clear()
-        ..addAll(cloud.map((k, v) => MapEntry(k, canonical(v))));
-      if (cloud.isNotEmpty) _apply(cloud);
-      ready = true;
-    }
-    notifyListeners();
-  }
-
-  Future<void> _stop() async {
-    for (final s in _subs) {
-      await s.cancel();
-    }
-    _subs.clear();
-    _snaps.clear();
-    _companySnap = null;
+    super.dispose();
   }
 }

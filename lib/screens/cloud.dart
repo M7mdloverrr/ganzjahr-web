@@ -1,10 +1,4 @@
-import 'dart:convert';
-
-import 'package:file_picker/file_picker.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import '../cloud.dart';
@@ -21,30 +15,32 @@ class CloudScreen extends StatefulWidget {
 }
 
 class _CloudScreenState extends State<CloudScreen> {
-  final _email = TextEditingController();
   final _password = TextEditingController();
   final _form = GlobalKey<FormState>();
   bool _busy = false;
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) => context.read<CloudSync>().refreshStatus());
+  }
+
+  @override
   void dispose() {
-    _email.dispose();
     _password.dispose();
     super.dispose();
   }
 
-  String _authError(Object e) {
-    if (e is FirebaseAuthException) {
-      return switch (e.code) {
-        'invalid-credential' || 'wrong-password' || 'user-not-found' || 'invalid-email' => 'Wrong email or password'.tr,
-        'email-already-in-use' => 'This email already has an account'.tr,
-        'weak-password' => 'At least 6 characters'.tr,
-        'network-request-failed' => 'No internet connection'.tr,
-        _ => e.message ?? e.code,
-      };
-    }
-    return '$e';
-  }
+  String _error(Object e) => switch (e is CloudException ? e.code : '') {
+    'wrong' => 'Wrong password'.tr,
+    'short' => 'At least 6 characters'.tr,
+    'exists' => 'The account already exists. Please sign in.'.tr,
+    'noaccount' => 'No account yet. Please create one first.'.tr,
+    'locked' => 'Too many attempts. Try again in 15 minutes.'.tr,
+    'storage' => 'The cloud database is not switched on yet.'.tr,
+    'offline' => 'No internet connection'.tr,
+    _ => '$e',
+  };
 
   Future<void> _signIn({required bool create}) async {
     if (!_form.currentState!.validate()) return;
@@ -66,76 +62,21 @@ class _CloudScreenState extends State<CloudScreen> {
     };
     setState(() => _busy = true);
     try {
-      await cloud.signIn(_email.text.trim(), _password.text, create: create);
+      await cloud.signIn(_password.text, create: create);
+      _password.clear();
       if (mounted) toast(context, 'All data is saved in the cloud.'.tr);
     } catch (e) {
-      if (mounted) toast(context, _authError(e));
+      if (mounted) toast(context, _error(e));
     } finally {
       if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<String?> _pasteConfig() {
-    final ctrl = TextEditingController();
-    return showDialog<String>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('Connect cloud'.tr),
-        content: TextField(
-          controller: ctrl,
-          maxLines: 8,
-          decoration: InputDecoration(hintText: 'Paste the firebaseConfig from Firebase here'.tr, border: const OutlineInputBorder()),
-        ),
-        actions: [
-          if (!kIsWeb)
-            TextButton(
-              onPressed: () async {
-                final files = await FilePicker.pickFiles(dialogTitle: 'Choose google-services.json'.tr, type: FileType.any);
-                if (files.isEmpty || !ctx.mounted) return;
-                final raw = utf8.decode(await files.first.readAsBytes());
-                if (ctx.mounted) Navigator.pop(ctx, raw);
-              },
-              child: Text('Load file'.tr),
-            ),
-          TextButton(onPressed: () => Navigator.pop(ctx), child: Text('Cancel'.tr)),
-          FilledButton(onPressed: () => Navigator.pop(ctx, ctrl.text), child: Text('Connect cloud'.tr)),
-        ],
-      ),
-    );
-  }
-
-  Future<void> _connect() async {
-    final raw = await _pasteConfig();
-    if (raw == null || raw.trim().isEmpty || !mounted) return;
-    setState(() => _busy = true);
-    try {
-      if (!mounted) return;
-      await context.read<CloudSync>().connect(raw);
-      if (mounted) toast(context, 'Cloud connected. Now sign in or create an account.'.tr);
-    } catch (e) {
-      if (mounted) toast(context, 'This is not a valid Firebase config.'.tr);
-    } finally {
-      if (mounted) setState(() => _busy = false);
-    }
-  }
-
-  Future<void> _reset() async {
-    if (_email.text.trim().isEmpty) {
-      toast(context, 'Enter your email first.'.tr);
-      return;
-    }
-    try {
-      await context.read<CloudSync>().resetPassword(_email.text.trim());
-      if (mounted) toast(context, 'Password reset email sent.'.tr);
-    } catch (e) {
-      if (mounted) toast(context, _authError(e));
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final cloud = context.watch<CloudSync>();
-    final user = cloud.user;
+    final signedIn = cloud.signedIn;
+    final create = cloud.hasAccount == false;
     return Scaffold(
       appBar: AppBar(title: Text('Cloud sync'.tr)),
       body: ListView(
@@ -148,10 +89,10 @@ class _CloudScreenState extends State<CloudScreen> {
                 children: [
                   CircleAvatar(
                     radius: 24,
-                    backgroundColor: (user == null ? Colors.black12 : brandGreen.withValues(alpha: 0.2)),
+                    backgroundColor: (!signedIn ? Colors.black12 : brandGreen.withValues(alpha: 0.2)),
                     child: Icon(
-                      user == null ? Icons.cloud_off_rounded : (cloud.pending ? Icons.cloud_upload_rounded : Icons.cloud_done_rounded),
-                      color: user == null ? Colors.black45 : brandGreenDark,
+                      !signedIn ? Icons.cloud_off_rounded : (cloud.pending || !cloud.online ? Icons.cloud_upload_rounded : Icons.cloud_done_rounded),
+                      color: !signedIn ? Colors.black45 : brandGreenDark,
                     ),
                   ),
                   const SizedBox(width: 14),
@@ -160,12 +101,12 @@ class _CloudScreenState extends State<CloudScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         Text(
-                          user == null ? 'Not signed in'.tr : 'Synced as {e}'.trf({'e': user.email ?? ''}),
+                          !signedIn ? 'Not signed in'.tr : 'Connected to the GanzJahr cloud'.tr,
                           style: const TextStyle(fontWeight: FontWeight.w800),
                         ),
-                        if (user != null)
+                        if (signedIn)
                           Text(
-                            cloud.pending
+                            !cloud.online
                                 ? 'Waiting for internet…'.tr
                                 : cloud.lastSync == null
                                 ? ''
@@ -181,39 +122,14 @@ class _CloudScreenState extends State<CloudScreen> {
           ),
           const SizedBox(height: 8),
           Text(
-            'Sign in with the same account on every phone or tablet – all customers, invoices and settings are saved in the cloud and stay in sync automatically, even after working offline.'
+            'All customers, invoices and settings are saved on your GanzJahr server. Sign in with the same password in the phone app and on the website – everything stays in sync automatically, even after working offline.'
                 .tr,
             style: const TextStyle(color: Colors.black54),
           ),
           const SizedBox(height: 16),
-          if (!cloud.available) ...[
-            Card(
-              color: const Color(0xFFFFF7E6),
-              child: Padding(
-                padding: const EdgeInsets.all(14),
-                child: Text(
-                  'Cloud is not connected yet. Create a free Firebase project with any Google account (console.firebase.google.com), turn on Email/Password login and Firestore, add a Web app (</> icon), copy the firebaseConfig and paste it here. Use the same text in the phone app and on the website.'
-                      .tr,
-                ),
-              ),
-            ),
-            const SizedBox(height: 12),
-            if (_busy)
-              const Center(child: CircularProgressIndicator())
-            else
-              FilledButton.icon(icon: const Icon(Icons.cloud_upload_rounded), label: Text('Connect cloud'.tr), onPressed: _connect),
-          ] else if (user != null) ...[
-            if (cloud.config != null) ...[
-              FilledButton.tonalIcon(
-                icon: const Icon(Icons.copy_rounded),
-                label: Text('Copy setup text for another device'.tr),
-                onPressed: () async {
-                  await Clipboard.setData(ClipboardData(text: cloud.config!));
-                  if (context.mounted) toast(context, 'Copied. Paste it under Cloud sync on the other device.'.tr);
-                },
-              ),
-              const SizedBox(height: 8),
-            ],
+          if (signedIn) ...[
+            FilledButton.tonalIcon(icon: const Icon(Icons.sync_rounded), label: Text('Sync now'.tr), onPressed: cloud.sync),
+            const SizedBox(height: 8),
             OutlinedButton.icon(
               icon: const Icon(Icons.logout_rounded),
               label: Text('Sign out'.tr),
@@ -223,40 +139,40 @@ class _CloudScreenState extends State<CloudScreen> {
                 }
               },
             ),
-          ] else
+          ] else if (cloud.storageReady == false)
+            Card(
+              color: const Color(0xFFFFF7E6),
+              child: Padding(padding: const EdgeInsets.all(14), child: Text('The cloud database is not switched on yet.'.tr)),
+            )
+          else
             Form(
               key: _form,
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  TextFormField(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    autofillHints: const [AutofillHints.email],
-                    decoration: InputDecoration(labelText: 'Email'.tr, prefixIcon: const Icon(Icons.mail_outline_rounded)),
-                    validator: (v) => (v ?? '').contains('@') ? null : 'Required'.tr,
-                  ),
-                  const SizedBox(height: 12),
+                  if (create) ...[
+                    Text('First time: choose a password for your company account.'.tr, style: const TextStyle(fontWeight: FontWeight.w700)),
+                    const SizedBox(height: 12),
+                  ],
                   TextFormField(
                     controller: _password,
                     obscureText: true,
                     autofillHints: const [AutofillHints.password],
                     decoration: InputDecoration(labelText: 'Password'.tr, prefixIcon: const Icon(Icons.lock_outline_rounded)),
                     validator: (v) => (v ?? '').length >= 6 ? null : 'At least 6 characters'.tr,
+                    onFieldSubmitted: (_) => _signIn(create: create),
                   ),
                   const SizedBox(height: 16),
                   if (_busy)
                     const Center(child: CircularProgressIndicator())
-                  else ...[
-                    FilledButton.icon(icon: const Icon(Icons.login_rounded), label: Text('Sign in'.tr), onPressed: () => _signIn(create: false)),
-                    const SizedBox(height: 8),
-                    OutlinedButton.icon(
+                  else if (create)
+                    FilledButton.icon(
                       icon: const Icon(Icons.person_add_alt_1_rounded),
                       label: Text('Create account'.tr),
                       onPressed: () => _signIn(create: true),
-                    ),
-                    TextButton(onPressed: _reset, child: Text('Forgot password?'.tr)),
-                  ],
+                    )
+                  else
+                    FilledButton.icon(icon: const Icon(Icons.login_rounded), label: Text('Sign in'.tr), onPressed: () => _signIn(create: false)),
                 ],
               ),
             ),

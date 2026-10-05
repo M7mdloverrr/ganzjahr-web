@@ -169,32 +169,4 @@ void main() {
     final inv = sampleInvoice();
     expect(canonical(inv.toJson()), canonical(jsonDecode(jsonEncode(inv.toJson()))));
   });
-
-  test('reads google-services.json', () {
-    const raw = '''{"project_info":{"project_number":"123","project_id":"ganzjahr","storage_bucket":"ganzjahr.appspot.com"},
-      "client":[{"client_info":{"mobilesdk_app_id":"1:123:android:abc","android_client_info":{"package_name":"de.ganzjahr.ganzjahr_rechnung"}},
-      "api_key":[{"current_key":"KEY"}]}]}''';
-    final o = CloudSync.optionsFromGoogleServices(raw);
-    expect(o.projectId, 'ganzjahr');
-    expect(o.appId, '1:123:android:abc');
-    expect(o.apiKey, 'KEY');
-    expect(o.messagingSenderId, '123');
-  });
-
-  test('reads pasted firebaseConfig', () {
-    const raw = '''const firebaseConfig = {
-  apiKey: "AIzaX",
-  authDomain: "ganzjahr.firebaseapp.com",
-  projectId: "ganzjahr",
-  storageBucket: "ganzjahr.firebasestorage.app",
-  messagingSenderId: "123",
-  appId: "1:123:web:abc"
-};''';
-    final o = CloudSync.optionsFromConfig(raw);
-    expect(o.apiKey, 'AIzaX');
-    expect(o.projectId, 'ganzjahr');
-    expect(o.appId, '1:123:web:abc');
-    expect(o.authDomain, 'ganzjahr.firebaseapp.com');
-    expect(() => CloudSync.optionsFromConfig('hello'), throwsFormatException);
-  });
 }

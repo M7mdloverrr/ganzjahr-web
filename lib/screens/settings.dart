@@ -166,9 +166,9 @@ class SettingsScreen extends StatelessWidget {
             child: Column(
               children: [
                 tile(
-                  context.watch<CloudSync>().user == null ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
+                  !context.watch<CloudSync>().signedIn ? Icons.cloud_off_rounded : Icons.cloud_done_rounded,
                   'Cloud sync'.tr,
-                  context.watch<CloudSync>().user?.email ?? 'Save all customers, invoices and settings online'.tr,
+                  context.watch<CloudSync>().signedIn ? 'All data is saved in the cloud.'.tr : 'Save all customers, invoices and settings online'.tr,
                   () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CloudScreen())),
                 ),
                 tile(Icons.backup_rounded, 'Save backup'.tr, 'Store all data as a file (Google Drive, USB, email…)'.tr, () => _exportBackup(context)),
@@ -206,7 +206,7 @@ class SettingsScreen extends StatelessWidget {
                   style: const TextStyle(color: Colors.black45),
                 ),
                 Text(
-                  context.watch<CloudSync>().user != null
+                  context.watch<CloudSync>().signedIn
                       ? 'All data is saved in the cloud.'.tr
                       : 'Data is stored only on this phone. Make regular backups.'.tr,
                   style: TextStyle(color: Colors.black45, fontSize: 12),
