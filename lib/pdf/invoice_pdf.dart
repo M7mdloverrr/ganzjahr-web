@@ -410,7 +410,9 @@ Future<Uint8List> buildDocumentPdf(Document d, Company company) async {
   final cust = d.customer;
   final isInvoice = d.isInvoice;
   final cancelled = d.status == DocStatus.cancelled;
+  final paid = isInvoice && d.status == DocStatus.paid;
   final t = d.totals;
+  final signature = company.owner.isNotEmpty ? company.owner : company.name;
 
   final info = <(String, String)>[
     (isInvoice ? 'Rechnungs-Nr.' : 'Angebots-Nr.', d.number),
@@ -418,7 +420,12 @@ Future<Uint8List> buildDocumentPdf(Document d, Company company) async {
     ('Erstellt am', dmyHm(d.createdAt)),
     if (isInvoice) ('Leistungsdatum', _servicePeriod(d)),
     if (cust.number.isNotEmpty) ('Kunden-Nr.', cust.number),
-    if (isInvoice) ('Zahlbar bis', dmy(d.dueDate)) else ('Gültig bis', dmy(d.dueDate)),
+    if (paid)
+      ('Bezahlt am', dmy(d.paidAt ?? DateTime.now()))
+    else if (isInvoice)
+      ('Zahlbar bis', dmy(d.dueDate))
+    else
+      ('Gültig bis', dmy(d.dueDate)),
     if (cust.vatId.isNotEmpty) ('USt-IdNr. Kunde', cust.vatId),
   ];
 
@@ -430,7 +437,7 @@ Future<Uint8List> buildDocumentPdf(Document d, Company company) async {
       footer: l.footer,
       build: (ctx) => [
         l.letterhead(recipient: cust.addressLines, info: info),
-        l.title('${cancelled ? 'STORNIERT – ' : ''}${isInvoice ? 'Rechnung' : 'Angebot'} Nr. ${d.number}'),
+        l.title('${cancelled ? 'STORNIERT – ' : ''}${isInvoice ? 'Rechnung' : 'Angebot'} Nr. ${d.number}${paid ? ' – BEZAHLT' : ''}'),
         if (cust.propertyAddress.isNotEmpty) l.paragraph('Objekt / Leistungsort: ${cust.propertyAddress}'),
         if (d.sourceQuoteNumber != null) l.paragraph('Bezug: unser Angebot Nr. ${d.sourceQuoteNumber}'),
         l.paragraph(_salutation(cust)),
@@ -451,7 +458,13 @@ Future<Uint8List> buildDocumentPdf(Document d, Company company) async {
             'Voraussetzung ist eine unbare Zahlung (Überweisung) auf unser Konto.',
           ),
         if (d.notes.isNotEmpty) l.paragraph(d.notes),
-        if (isInvoice && !cancelled)
+        if (paid)
+          l.paragraph(
+            'Den Rechnungsbetrag von ${eur(t.gross)} haben wir am ${dmy(d.paidAt ?? DateTime.now())} dankend erhalten. '
+            'Die Rechnung ist vollständig beglichen.\n\n'
+            'Vielen Dank für Ihr Vertrauen!\nMit freundlichen Grüßen\n$signature',
+          )
+        else if (isInvoice && !cancelled)
           l.paymentBlock(
             text:
                 'Bitte überweisen Sie den Rechnungsbetrag von ${eur(t.gross)} ohne Abzug bis zum ${dmy(d.dueDate)} '
